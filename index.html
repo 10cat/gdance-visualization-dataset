@@ -1,0 +1,190 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Group Dance 3D Plot - Experiment Records</title>
+        <meta charset="UTF-8">
+        <style>
+            body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                margin: 20px; 
+                background-color: #f5f5f5;
+                line-height: 1.6;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                background: white;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
+            h1 { 
+                color: #2c3e50; 
+                text-align: center;
+                margin-bottom: 10px;
+                font-size: 2.5em;
+            }
+            .subtitle {
+                text-align: center;
+                color: #7f8c8d;
+                font-size: 1.2em;
+                margin-bottom: 30px;
+            }
+            .date-toggle {
+                margin: 15px 0;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }
+            .date-header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 15px 20px;
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 1.1em;
+                transition: all 0.3s ease;
+                user-select: none;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .date-header:hover {
+                background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+            }
+            .toggle-icon {
+                transition: transform 0.3s ease;
+                font-size: 1.2em;
+            }
+            .date-content {
+                display: none;
+                background: #fafafa;
+                border-top: 1px solid #e0e0e0;
+            }
+            .date-content.active {
+                display: block;
+            }
+            .exp-item { 
+                margin: 0;
+                padding: 15px 20px; 
+                border-bottom: 1px solid #eeeeee;
+                background: white;
+                transition: background-color 0.2s ease;
+            }
+            .exp-item:last-child {
+                border-bottom: none;
+            }
+            .exp-item:hover {
+                background-color: #f8f9ff;
+            }
+            .exp-name { 
+                font-weight: 600;
+                color: #2c3e50;
+                margin-bottom: 8px;
+                font-size: 1.05em;
+            }
+            .exp-details {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .exp-time {
+                color: #7f8c8d;
+                font-size: 0.9em;
+            }
+            .exp-link {
+                display: inline-block;
+                padding: 8px 16px;
+                background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+                color: white;
+                text-decoration: none;
+                border-radius: 5px;
+                font-size: 0.9em;
+                transition: all 0.3s ease;
+                font-weight: 500;
+            }
+            .exp-link:hover {
+                background: linear-gradient(135deg, #0984e3 0%, #74b9ff 100%);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 8px rgba(116, 185, 255, 0.3);
+            }
+            .stats {
+                background: #ecf0f1;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                text-align: center;
+                color: #2c3e50;
+            }
+            .stats strong {
+                color: #e74c3c;
+                font-size: 1.2em;
+            }
+            @media (max-width: 768px) {
+                .container { margin: 10px; padding: 15px; }
+                h1 { font-size: 2em; }
+                .exp-details { flex-direction: column; align-items: flex-start; }
+                .date-header { padding: 12px 15px; }
+                .exp-item { padding: 12px 15px; }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Group Dance 3D Plot</h1>
+            <p class="subtitle">Experiment Records</p>
+            
+            <div class="stats">
+                <strong>1617</strong> experiments across <strong>1</strong> days
+            </div>
+    
+            <div class="date-toggle">
+                <div class="date-header" onclick="toggleDate(this)">
+                    <span>Wednesday, July 30, 2025 (1617 experiments)</span>
+                    <span class="toggle-icon" style="transform: rotate(90deg);">▶</span>
+                </div>
+                <div class="date-content active">
+            
+                </div>
+            </div>
+        
+        </div>
+
+        <script>
+            function toggleDate(header) {
+                const content = header.nextElementSibling;
+                const icon = header.querySelector('.toggle-icon');
+                
+                if (content.classList.contains('active')) {
+                    content.classList.remove('active');
+                    icon.style.transform = 'rotate(0deg)';
+                } else {
+                    content.classList.add('active');
+                    icon.style.transform = 'rotate(90deg)';
+                }
+            }
+
+            // Add keyboard support
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    // Close all toggles
+                    document.querySelectorAll('.date-content.active').forEach(content => {
+                        content.classList.remove('active');
+                        const icon = content.previousElementSibling.querySelector('.toggle-icon');
+                        icon.style.transform = 'rotate(0deg)';
+                    });
+                }
+            });
+
+            // Auto-scroll to top on page load
+            window.addEventListener('load', function() {
+                window.scrollTo(0, 0);
+            });
+        </script>
+    </body>
+    </html>
+    
