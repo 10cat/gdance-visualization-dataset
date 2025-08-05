@@ -4,6 +4,24 @@ from datetime import datetime
 from collections import defaultdict
 import re
 
+def extract_person_count(filename):
+    """从文件名中提取人数信息"""
+    # 支持多种命名模式
+    patterns = [
+        r'gdance_sample_[^_]+_p(\d+)_',  # gdance_sample_{split}_p{num_person}_{name}
+        r'_person(\d+)',                  # {prefix}_person{num_person}
+        r'_p(\d+)_',                     # {prefix}_p{num_person}_{suffix}
+        r'person(\d+)',                  # {prefix}person{num_person}
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, filename)
+        if match:
+            return int(match.group(1))
+    
+    # 如果没有匹配到，返回 None 表示未知人数
+    return None
+
 def parse_existing_index(index_file="index.html"):
     """解析现有的index.html文件，提取文件名和对应的Time added信息"""
     existing_times = {}
@@ -95,7 +113,7 @@ def parse_existing_index(index_file="index.html"):
     return existing_times
 
 def create_visualization_index(experiment_list, output_file="index.html"):
-    """创建包含多个可视化链接的索引页面，按日期分组并支持折叠"""
+    """创建包含多个可视化链接的索引页面，按人数分组并支持折叠"""
     
     # 首先解析现有的index.html文件获取准确的时间信息
     existing_times = parse_existing_index(output_file)
@@ -103,16 +121,26 @@ def create_visualization_index(experiment_list, output_file="index.html"):
     # 获取今天的日期
     today = datetime.now().date()
     
-    # 按日期分组实验
-    experiments_by_date = defaultdict(list)
+    # 按人数分组实验
+    experiments_by_person = defaultdict(list)
+    unknown_person_experiments = []  # 无法确定人数的实验
     
-    print(f"🔍 处理文件时间信息...")
+    print(f"🔍 处理文件人数信息...")
     existing_count = 0
     new_count = 0
     updated_today_count = 0
     
     for exp in experiment_list:
         filename = exp['name']  # 不带扩展名的文件名
+        
+        # 提取人数信息
+        person_count = extract_person_count(filename)
+        if person_count is None:
+            print(f"  ⚠️  无法从文件名提取人数: {filename}")
+            unknown_person_experiments.append(exp)
+            person_count = 'unknown'
+        else:
+            print(f"  👥 {filename}: {person_count} 人")
         
         # 获取文件的系统时间信息
         try:
@@ -176,17 +204,15 @@ def create_visualization_index(experiment_list, output_file="index.html"):
             new_count += 1
             print(f"  🆕 {filename[:45]:<45} -> {date_obj.strftime('%Y-%m-%d %H:%M:%S')} ({source})")
         
-        date_key = date_obj.strftime('%Y-%m-%d')  # YYYY-MM-DD format
-        
         # 添加详细时间信息到实验数据
         exp['datetime'] = date_obj
-        exp['date_key'] = date_key
         exp['time_display'] = date_obj.strftime('%H:%M:%S')
         exp['date_display'] = date_obj.strftime('%Y-%m-%d %H:%M:%S')
         exp['original_date_str'] = date_obj.strftime('%a %b %d %H:%M:%S %Y')  # 保持原格式
-        exp['is_updated_today'] = (filename in existing_times and system_date == today and time_diff_seconds > MIN_UPDATE_THRESHOLD_SECONDS)
+        exp['is_updated_today'] = (filename in existing_times and system_date == today and time_diff_seconds > MIN_UPDATE_THRESHOLD_SECONDS if 'time_diff_seconds' in locals() else False)
+        exp['person_count'] = person_count
         
-        experiments_by_date[date_key].append(exp)
+        experiments_by_person[person_count].append(exp)
     
     print(f"\n📊 文件处理统计:")
     print(f"  ✅ 现有文件 (保持原始时间): {existing_count}")
@@ -197,26 +223,34 @@ def create_visualization_index(experiment_list, output_file="index.html"):
     if updated_today_count > 0:
         print(f"\n🎉 本次更新了 {updated_today_count} 个文件的时间戳！")
     
-    # 对每个日期下的实验按时间排序（最新的在前）
-    for date_key in experiments_by_date:
-        experiments_by_date[date_key].sort(key=lambda x: x['datetime'], reverse=True)
+    # 对每个人数分组下的实验按时间排序（最新的在前）
+    for person_count in experiments_by_person:
+        experiments_by_person[person_count].sort(key=lambda x: x['datetime'], reverse=True)
     
-    # 获取排序后的日期列表（最新的在前）
-    sorted_dates = sorted(experiments_by_date.keys(), reverse=True)
+    # 获取排序后的人数列表（按人数升序，unknown放在最后）
+    sorted_person_counts = []
+    numeric_counts = [k for k in experiments_by_person.keys() if isinstance(k, int)]
+    numeric_counts.sort()
+    sorted_person_counts.extend(numeric_counts)
+    if 'unknown' in experiments_by_person:
+        sorted_person_counts.append('unknown')
     
-    print(f"📊 日期分布统计:")
-    for date_key in sorted_dates:
-        count = len(experiments_by_date[date_key])
-        print(f"  📅 {date_key}: {count} 个实验")
+    print(f"📊 人数分布统计:")
+    for person_count in sorted_person_counts:
+        count = len(experiments_by_person[person_count])
+        if person_count == 'unknown':
+            print(f"  ❓ 未知人数: {count} 个实验")
+        else:
+            print(f"  👥 {person_count} 人: {count} 个实验")
     
-    print(f"📈 总计: {len(experiment_list)} 个实验分布在 {len(sorted_dates)} 天")
+    print(f"📈 总计: {len(experiment_list)} 个实验分布在 {len(sorted_person_counts)} 个人数组")
     
     # 创建HTML内容
     html_template = """
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Group Dance 3D Plot - Experiment Records</title>
+        <title>Group Dance 3D Plot - Experiment Records (Organized by Group Size)</title>
         <meta charset="UTF-8">
         <style>
             body {{ 
@@ -245,15 +279,15 @@ def create_visualization_index(experiment_list, output_file="index.html"):
                 font-size: 1.2em;
                 margin-bottom: 30px;
             }}
-            .date-toggle {{
+            .person-toggle {{
                 margin: 15px 0;
                 border: 1px solid #e0e0e0;
                 border-radius: 8px;
                 overflow: hidden;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             }}
-            .date-header {{
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            .person-header {{
+                background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
                 color: white;
                 padding: 15px 20px;
                 cursor: pointer;
@@ -265,19 +299,25 @@ def create_visualization_index(experiment_list, output_file="index.html"):
                 justify-content: space-between;
                 align-items: center;
             }}
-            .date-header:hover {{
-                background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+            .person-header:hover {{
+                background: linear-gradient(135deg, #0984e3 0%, #74b9ff 100%);
+            }}
+            .person-header.unknown {{
+                background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);
+            }}
+            .person-header.unknown:hover {{
+                background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
             }}
             .toggle-icon {{
                 transition: transform 0.3s ease;
                 font-size: 1.2em;
             }}
-            .date-content {{
+            .person-content {{
                 display: none;
                 background: #fafafa;
                 border-top: 1px solid #e0e0e0;
             }}
-            .date-content.active {{
+            .person-content.active {{
                 display: block;
             }}
             .exp-item {{ 
@@ -313,7 +353,7 @@ def create_visualization_index(experiment_list, output_file="index.html"):
             .exp-link {{
                 display: inline-block;
                 padding: 8px 16px;
-                background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+                background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
                 color: white;
                 text-decoration: none;
                 border-radius: 5px;
@@ -322,9 +362,9 @@ def create_visualization_index(experiment_list, output_file="index.html"):
                 font-weight: 500;
             }}
             .exp-link:hover {{
-                background: linear-gradient(135deg, #0984e3 0%, #74b9ff 100%);
+                background: linear-gradient(135deg, #00a085 0%, #00b894 100%);
                 transform: translateY(-1px);
-                box-shadow: 0 4px 8px rgba(116, 185, 255, 0.3);
+                box-shadow: 0 4px 8px rgba(0, 184, 148, 0.3);
             }}
             .stats {{
                 background: #ecf0f1;
@@ -338,11 +378,15 @@ def create_visualization_index(experiment_list, output_file="index.html"):
                 color: #e74c3c;
                 font-size: 1.2em;
             }}
+            .person-icon {{
+                margin-right: 8px;
+                font-size: 1.1em;
+            }}
             @media (max-width: 768px) {{
                 .container {{ margin: 10px; padding: 15px; }}
                 h1 {{ font-size: 2em; }}
                 .exp-details {{ flex-direction: column; align-items: flex-start; }}
-                .date-header {{ padding: 12px 15px; }}
+                .person-header {{ padding: 12px 15px; }}
                 .exp-item {{ padding: 12px 15px; }}
             }}
         </style>
@@ -350,42 +394,48 @@ def create_visualization_index(experiment_list, output_file="index.html"):
     <body>
         <div class="container">
             <h1>Group Dance 3D Plot</h1>
-            <p class="subtitle">Experiment Records</p>
+            <p class="subtitle">Experiment Records - Organized by Group Size</p>
             
             <div class="stats">
-                <strong>{total_experiments}</strong> experiments across <strong>{total_dates}</strong> days
+                <strong>{total_experiments}</strong> experiments across <strong>{total_groups}</strong> group sizes
             </div>
     """
     
     html_content = html_template.format(
         total_experiments=len(experiment_list),
-        total_dates=len(sorted_dates)
+        total_groups=len(sorted_person_counts)
     )
     
-    # 为每个日期创建一个折叠区域
-    for i, date_key in enumerate(sorted_dates):
-        experiments = experiments_by_date[date_key]
-        date_obj = datetime.strptime(date_key, '%Y-%m-%d')
-        date_display = date_obj.strftime('%B %d, %Y')  # e.g., "May 29, 2025"
-        weekday = date_obj.strftime('%A')  # e.g., "Thursday"
+    # 为每个人数分组创建一个折叠区域
+    for i, person_count in enumerate(sorted_person_counts):
+        experiments = experiments_by_person[person_count]
         
-        # 第一个日期默认展开
+        # 设置标题和样式
+        if person_count == 'unknown':
+            header_text = f"❓ Unknown Group Size ({len(experiments)} experiments)"
+            header_class = "person-header unknown"
+            icon = "❓"
+        else:
+            header_text = f"👥 {person_count} People ({len(experiments)} experiments)"
+            header_class = "person-header"
+            icon = "👥"
+        
+        # 第一个分组默认展开
         is_first = i == 0
-        content_class = "date-content active" if is_first else "date-content"
+        content_class = "person-content active" if is_first else "person-content"
         icon_rotation = "rotate(90deg)" if is_first else "rotate(0deg)"
         
         html_content += f"""
-            <div class="date-toggle">
-                <div class="date-header" onclick="toggleDate(this)">
-                    <span>{weekday}, {date_display} ({len(experiments)} experiments)</span>
+            <div class="person-toggle">
+                <div class="{header_class}" onclick="togglePerson(this)">
+                    <span><span class="person-icon">{icon}</span>{header_text}</span>
                     <span class="toggle-icon" style="transform: {icon_rotation};">▶</span>
                 </div>
                 <div class="{content_class}">
         """
         
-        # 添加该日期下的所有实验
+        # 添加该人数分组下的所有实验
         for exp in experiments:
-            # 统一使用Added格式
             html_content += f"""
                     <div class="exp-item">
                         <div class="exp-name">{exp['name']}</div>
@@ -407,7 +457,7 @@ def create_visualization_index(experiment_list, output_file="index.html"):
         </div>
 
         <script>
-            function toggleDate(header) {
+            function togglePerson(header) {
                 const content = header.nextElementSibling;
                 const icon = header.querySelector('.toggle-icon');
                 
@@ -424,10 +474,19 @@ def create_visualization_index(experiment_list, output_file="index.html"):
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') {
                     // Close all toggles
-                    document.querySelectorAll('.date-content.active').forEach(content => {
+                    document.querySelectorAll('.person-content.active').forEach(content => {
                         content.classList.remove('active');
                         const icon = content.previousElementSibling.querySelector('.toggle-icon');
                         icon.style.transform = 'rotate(0deg)';
+                    });
+                }
+                
+                // Press 'a' to expand all sections
+                if (e.key === 'a' || e.key === 'A') {
+                    document.querySelectorAll('.person-content').forEach(content => {
+                        content.classList.add('active');
+                        const icon = content.previousElementSibling.querySelector('.toggle-icon');
+                        icon.style.transform = 'rotate(90deg)';
                     });
                 }
             });
@@ -445,7 +504,7 @@ def create_visualization_index(experiment_list, output_file="index.html"):
         f.write(html_content)
     
     print(f"✅ Updated the index.html: {output_file}")
-    print(f"📊 Total: {len(experiment_list)} experiments across {len(sorted_dates)} days")
+    print(f"📊 Total: {len(experiment_list)} experiments across {len(sorted_person_counts)} group sizes")
     return output_file
 
 def push_to_github(repo_dir, message="更新可视化索引页面"):
@@ -494,11 +553,11 @@ def main():
         return
     
     today = datetime.now().strftime('%Y-%m-%d')
-    print(f"\n📝 生成改进的索引页面 (今天: {today})...")
+    print(f"\n📝 生成按人数分组的索引页面 (今天: {today})...")
     create_visualization_index(experiments, "index.html")
     
     print(f"\n🚀 推送到GitHub...")
-    push_to_github('./', message=f"更新可视化索引页面 - 刷新今天更新的文件时间戳 ({today})")
+    push_to_github('./', message=f"更新可视化索引页面 - 改为按人数分组 ({today})")
 
 if __name__ == "__main__":
     main()
